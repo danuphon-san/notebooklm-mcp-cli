@@ -42,6 +42,8 @@ VALID_ARTIFACT_TYPES = frozenset(
     ]
 )
 
+_CINEMATIC_FOCUS_HINT = "Use --focus to pass creative direction (visual style, narrative, audience)."
+
 
 # ---------- TypedDicts ----------
 
@@ -221,13 +223,11 @@ def _normalize_video_style(
     if video_format == "cinematic":
         if style != "auto_select":
             raise ValidationError(
-                "video format 'cinematic' does not support --style. "
-                "Use --focus to pass creative direction (visual style, narrative, audience)."
+                f"video format 'cinematic' does not support --style. {_CINEMATIC_FOCUS_HINT}"
             )
         if prompt:
             raise ValidationError(
-                "video format 'cinematic' does not support --style-prompt. "
-                "Use --focus to pass creative direction (visual style, narrative, audience)."
+                f"video format 'cinematic' does not support --style-prompt. {_CINEMATIC_FOCUS_HINT}"
             )
         return style, ""
 
@@ -295,6 +295,14 @@ def create_artifact(
         ServiceError: API call failures
     """
     validate_artifact_type(artifact_type)
+
+    if artifact_type == "video":
+        _normalize_video_style(
+            video_format=video_format,
+            visual_style=visual_style,
+            video_style_prompt=video_style_prompt,
+        )
+
     resolved_ids = _resolve_source_ids(client, notebook_id, source_ids)
 
     try:
