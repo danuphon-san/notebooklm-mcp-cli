@@ -46,26 +46,7 @@ def _compare_versions(current: str, latest: str) -> bool:
 
 
 def _check_auth_status() -> str:
-    """Return the classic string status used by server_info.
-
-    This is now a trivial, elegant wrapper around the single source of truth
-    (`check_auth` in services/auth.py). All the real logic + tests live there.
-
-    Maps the underlying AuthCheckResult.reason to a small set of stable
-    statuses that are easier for agents to act on:
-
-    - "configured"    — live check passed; credentials work.
-    - "not_configured"— no credentials stored at all.
-    - "stale"         — credentials are known-bad (expired, past the 7-day
-                        heuristic, or the saved profile failed to load).
-                        Operations against NotebookLM will fail until the
-                        user runs `nlm login`.
-    - "unverified"    — we could not confirm either way (network error,
-                        non-200 HTTP, timeout). Cached credentials may
-                        still work for actual API calls, so the previous
-                        blanket "stale" label was misleading.
-    - "error"         — unexpected exception inside the check itself.
-    """
+    """Map AuthCheckResult.reason to the stable status strings documented in server_info."""
     try:
         from notebooklm_tools.services.auth import check_auth
 
@@ -75,11 +56,13 @@ def _check_auth_status() -> str:
             return "configured"
         if res.reason == "no_tokens":
             return "not_configured"
-        if res.reason in ("expired", "stale_heuristic") or (res.reason or "").startswith(
-            "load_error"
-        ):
+        reason = res.reason or ""
+        if reason in ("expired", "stale_heuristic") or reason.startswith("load_error"):
             return "stale"
-        if (res.reason or "").startswith("network_error") or (res.reason or "").startswith("http_"):
+        # 401/403 are definitive credential rejections, not transient network issues.
+        if reason in ("http_401", "http_403"):
+            return "stale"
+        if reason.startswith("network_error") or reason.startswith("http_"):
             return "unverified"
         # Unknown reason — be conservative.
         return "stale"

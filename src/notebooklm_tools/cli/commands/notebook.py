@@ -59,7 +59,7 @@ def create_notebook(
         formatter = get_formatter(fmt, console)
         formatter.format_item(result, title="Notebook Created")
     except (ServiceError, NLMError) as e:
-        handle_error(e, json_output=locals().get("json_output", False))
+        handle_error(e, json_output=json_output)
 
 
 @app.command("get")
