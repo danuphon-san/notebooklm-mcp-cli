@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **`AuthHealthChecker` API fallback falsely reported `stale` for valid multi-domain cookie profiles** — the homepage probe could correctly redirect to `accounts.google.com` (semi-stale cookies) while the RPC API still accepted the session, but the API fallback flattened `profile.cookies` to a dict before calling `NotebookLMClient`, dropping domain-specific duplicates (e.g. the same cookie name on `.google.com` and another host). `nlm login --check` passed the full cookie list and succeeded, so the two checks disagreed. The API probe now passes `profile.cookies` unchanged and includes `session_id` / `build_label`, matching `login --check`.
+- **`server_info` / `refresh_auth` / `studio_create` disagreed on semi-stale auth (Issue #224)** — `server_info` used the broken `AuthHealthChecker` API fallback, while `refresh_auth` and `studio_create` relied on homepage-only `check_auth` (no API confirmation on `stale`/`unverified`). CLI and `notebook_list` could work while `server_info` reported `stale`, `refresh_auth` refused to reload tokens, and agents looped on `nlm login`. MCP paths now share `credentials_are_usable()` (`AuthHealthChecker` + live API confirmation). `load_cached_tokens()` also forwards `build_label` to the MCP client.
 
 ## [0.7.1] - 2026-06-06
 

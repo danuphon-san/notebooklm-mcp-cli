@@ -38,6 +38,8 @@ __all__ = [
     "AuthProbeResult",  # defined locally in this module
     "AuthTokens",  # noqa: F822 — provided lazily via PEP 562 __getattr__
     "check_auth",
+    "confirm_auth_via_api",
+    "credentials_are_usable",
     "get_active_auth_mtime",
     "get_auth_health_checker",
     "get_cache_path",
@@ -549,6 +551,59 @@ class AuthHealthChecker:
 # ---------------------------------------------------------------------------
 # Process-wide singleton so the CLI and MCP share the same 30s cache
 # ---------------------------------------------------------------------------
+
+
+def confirm_auth_via_api(profile: str | None = None) -> tuple[bool, str | None]:
+    """Confirm credentials with a live NotebookLM API call.
+
+    Uses the same client parameters as ``nlm login --check`` (full cookie
+    list plus session fields), not a flattened cookie dict.
+    """
+    if profile is None:
+        from notebooklm_tools.utils.config import get_config
+
+        profile = get_config().auth.default_profile
+
+    from notebooklm_tools.core.auth import AuthManager
+    from notebooklm_tools.core.client import NotebookLMClient
+
+    manager = AuthManager(profile)
+    if not manager.profile_exists():
+        return False, "not_configured"
+
+    try:
+        p = manager.load_profile()
+        with NotebookLMClient(
+            cookies=p.cookies,
+            csrf_token=p.csrf_token or "",
+            session_id=p.session_id or "",
+            build_label=p.build_label or "",
+        ) as client:
+            client.list_notebooks()
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+
+
+def credentials_are_usable(*, force: bool = False) -> tuple[bool, str, str | None]:
+    """Return whether NotebookLM credentials can perform API operations.
+
+    Runs ``AuthHealthChecker`` first, then falls back to a direct API probe
+    when probes report ``stale`` or ``unverified`` — the semi-stale case
+    where the homepage rejects cookies but RPC calls still work (#224).
+    """
+    report = get_auth_health_checker().check(force=force)
+    if report.status == "configured":
+        return True, report.status, None
+
+    if report.status in ("stale", "unverified"):
+        ok, err = confirm_auth_via_api(profile=report.profile)
+        if ok:
+            return True, "configured", None
+        return False, report.status, err
+
+    detail = next((p.error for p in report.probes if p.error), None)
+    return False, report.status, detail
 
 
 _checker: AuthHealthChecker | None = None

@@ -312,6 +312,50 @@ def _enterable_client_mock(MockClient):
     return instance
 
 
+class TestCredentialsAreUsable:
+    def test_returns_configured_when_health_checker_passes(self, monkeypatch):
+        report = AuthHealthReport(
+            valid=True,
+            status="configured",
+            probes=[],
+            profile="default",
+            checked_at=0.0,
+        )
+        monkeypatch.setattr(
+            "notebooklm_tools.services.auth.get_auth_health_checker",
+            lambda: type("C", (), {"check": lambda self, **kw: report})(),
+        )
+        usable, status, detail = __import__(
+            "notebooklm_tools.services.auth", fromlist=["credentials_are_usable"]
+        ).credentials_are_usable()
+        assert usable is True
+        assert status == "configured"
+        assert detail is None
+
+    def test_falls_back_to_api_when_health_checker_reports_stale(self, monkeypatch):
+        report = AuthHealthReport(
+            valid=False,
+            status="stale",
+            probes=[AuthProbeResult(probe="homepage", valid=False, error="expired")],
+            profile="default",
+            checked_at=0.0,
+        )
+        monkeypatch.setattr(
+            "notebooklm_tools.services.auth.get_auth_health_checker",
+            lambda: type("C", (), {"check": lambda self, **kw: report})(),
+        )
+        monkeypatch.setattr(
+            "notebooklm_tools.services.auth.confirm_auth_via_api",
+            lambda **kw: (True, None),
+        )
+        from notebooklm_tools.services.auth import credentials_are_usable
+
+        usable, status, detail = credentials_are_usable()
+        assert usable is True
+        assert status == "configured"
+        assert detail is None
+
+
 class TestProbeApiErrorClassification:
     """`_probe_api` must prefix transport errors with `network_error:`
     so the verdict logic can distinguish them. The original PR emitted
