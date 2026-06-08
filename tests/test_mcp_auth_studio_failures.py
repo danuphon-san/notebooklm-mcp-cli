@@ -378,7 +378,9 @@ def test_studio_create_invalidates_auth_guard_when_auth_file_changes(monkeypatch
 
     # First call: mtime=N. Guard populated with mtime=N.
     monkeypatch.setattr(studio_tools, "_get_auth_file_mtime", lambda: 1000.0, raising=True)
-    monkeypatch.setattr(services_auth, "credentials_are_usable", _counting_credentials, raising=True)
+    monkeypatch.setattr(
+        services_auth, "credentials_are_usable", _counting_credentials, raising=True
+    )
     monkeypatch.setattr(studio_tools, "get_client", lambda: _FakeClient(), raising=True)
     monkeypatch.setattr(
         studio_tools.studio_service,
@@ -422,7 +424,9 @@ def test_studio_create_invalidates_auth_guard_when_auth_file_appears(monkeypatch
 
     # First call: file does not exist (mtime=0.0). Guard populated with mtime=0.0.
     monkeypatch.setattr(studio_tools, "_get_auth_file_mtime", lambda: 0.0, raising=True)
-    monkeypatch.setattr(services_auth, "credentials_are_usable", _counting_credentials, raising=True)
+    monkeypatch.setattr(
+        services_auth, "credentials_are_usable", _counting_credentials, raising=True
+    )
     monkeypatch.setattr(studio_tools, "get_client", lambda: _FakeClient(), raising=True)
     monkeypatch.setattr(
         studio_tools.studio_service,
