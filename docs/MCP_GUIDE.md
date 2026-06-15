@@ -224,8 +224,10 @@ tag(action="select", query="ai research")  # Find notebooks by tag match
 
 ```
 1. research_start(query="AI trends 2026", mode="deep")
-2. research_status(notebook_id, max_wait=300)  # wait for completion
-3. research_import(notebook_id, task_id, cited_only=True, timeout=600)  # optional cited subset
+2. research_status(notebook_id, auto_import=True)  # waits up to 15 min, imports automatically
+# Or review sources first, then import manually:
+2a. research_status(notebook_id)  # waits up to 15 min, returns next_action hint
+2b. research_import(notebook_id, task_id, cited_only=True, timeout=600)  # optional cited subset
 4. studio_create(notebook_id, artifact_type="audio", confirm=True)
 5. studio_status(notebook_id)  # poll until complete
 6. download_artifact(notebook_id, artifact_type="audio", output_path="podcast.mp3")

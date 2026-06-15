@@ -167,8 +167,8 @@ src/notebooklm_tools/
 | `source_rename` | Rename a source in a notebook |
 | `source_delete` | Delete a source from notebook (REQUIRES confirmation) |
 | `research_start` | Start Web or Drive research to discover sources |
-| `research_status` | Check research progress and get results |
-| `research_import` | Import discovered sources into notebook |
+| `research_status` | Check research progress (default: 900s wait, 30s poll). Pass `auto_import=True` to automatically import sources on completion — no separate `research_import` call needed. |
+| `research_import` | Import discovered sources into notebook (manual, if `auto_import` not used) |
 | `studio_create` | Generate unified content (audio, video, infographic, slides, etc.) |
 | `download_artifact` | Download any artifact (audio, video, pdf, markdown, json). Supports `wait`, `wait_timeout`, `poll_interval` params and returns `download_url` when MCP HTTP transport is active. |
 | `export_artifact` | Export Data Tables to Google Sheets or Reports to Google Docs |
