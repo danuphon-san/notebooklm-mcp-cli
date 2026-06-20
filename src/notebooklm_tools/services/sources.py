@@ -2,7 +2,6 @@
 
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
 from typing import Any
 
 from ..core.client import NotebookLMClient
@@ -224,11 +223,10 @@ def add_source(
         raise
     except Exception as e:
         if source_type == "file" and file_path:
-            resolved_path = Path(file_path).expanduser().resolve()
             user_message = f"Could not add file source: {e}"
             hint = (
-                "File paths are resolved on the machine running the MCP server. "
-                f"Resolved path: {resolved_path}"
+                "File paths must be accessible on the machine running nlm or the MCP server. "
+                f"Received path: {file_path}"
             )
         else:
             user_message = f"Could not add {source_type} source."
