@@ -721,17 +721,28 @@ def check_auth(
         resp = _fetch_notebooklm_homepage(cookie_dict, timeout=timeout)
 
         final_url = str(resp.url)
+        redirected_to_login = "accounts.google.com" in final_url
 
-        if "accounts.google.com" in final_url:
+        if not redirected_to_login and resp.status_code == 200:
+            # Clean authenticated homepage: fast positive. Extract fresh CSRF
+            # while we're here and record last_validated.
+            csrf = extract_csrf_from_page_source(resp.text) or ""
+            manager.save_profile(
+                cookies=p.cookies,
+                csrf_token=csrf or p.csrf_token,
+                session_id=p.session_id,
+                email=p.email,
+                build_label=p.build_label,
+            )
             return AuthCheckResult(
-                valid=False,
-                reason="expired",
+                valid=True,
+                reason=None,
                 live=True,
                 profile=profile,
-                details={"final_url": final_url},
+                details={"csrf_token": csrf} if csrf else None,
             )
 
-        if resp.status_code != 200:
+        if not redirected_to_login:
             return AuthCheckResult(
                 valid=False,
                 reason=f"http_{resp.status_code}",
@@ -739,25 +750,8 @@ def check_auth(
                 profile=profile,
             )
 
-        # Try to extract fresh CSRF while we're here (nice side-effect)
-        csrf = extract_csrf_from_page_source(resp.text) or ""
-
-        # Update last_validated so that future non-live checks are accurate
-        manager.save_profile(
-            cookies=p.cookies,
-            csrf_token=csrf or p.csrf_token,
-            session_id=p.session_id,
-            email=p.email,
-            build_label=p.build_label,
-        )
-
-        return AuthCheckResult(
-            valid=True,
-            reason=None,
-            live=True,
-            profile=profile,
-            details={"csrf_token": csrf} if csrf else None,
-        )
+        # A homepage login redirect is not definitive. Some live sessions still
+        # bounce there, while the batchexecute API accepts the same cookies.
 
     except Exception as exc:
         # Network / timeout / etc. — be conservative but do not lie.
@@ -769,6 +763,57 @@ def check_auth(
             profile=profile,
             details={"exception": str(exc)},
         )
+
+    # Homepage bounced to login. Confirm with the RPC path real operations use
+    # before declaring the profile expired.
+    try:
+        from notebooklm_tools.core.client import NotebookLMClient
+        from notebooklm_tools.core.exceptions import AuthenticationError
+
+        client = NotebookLMClient(
+            cookies=p.cookies,
+            csrf_token=p.csrf_token or "",
+            session_id=p.session_id or "",
+            build_label=p.build_label or "",
+        )
+        try:
+            client.list_notebooks()
+            refreshed_csrf = client.csrf_token
+            refreshed_session = client._session_id
+            refreshed_bl = client._bl
+        finally:
+            client.close()
+    except AuthenticationError:
+        return AuthCheckResult(
+            valid=False,
+            reason="expired",
+            live=True,
+            profile=profile,
+            details={"final_url": final_url},
+        )
+    except Exception as exc:
+        return AuthCheckResult(
+            valid=False,
+            reason=f"network_error: {type(exc).__name__}",
+            live=True,
+            profile=profile,
+            details={"exception": str(exc)},
+        )
+
+    manager.save_profile(
+        cookies=p.cookies,
+        csrf_token=refreshed_csrf or p.csrf_token,
+        session_id=refreshed_session or p.session_id,
+        email=p.email,
+        build_label=refreshed_bl or p.build_label,
+    )
+    return AuthCheckResult(
+        valid=True,
+        reason=None,
+        live=True,
+        profile=profile,
+        details={"recovered_via": "rpc"},
+    )
 
 
 # Note: AuthHealthChecker, AuthProbeResult, AuthHealthReport live in
